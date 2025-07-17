@@ -5,7 +5,7 @@ import json
 import cv2
 from tqdm import tqdm
 
-BASE_DIR = r"G:\DEEP LEARNING\AI city\Dataset\data" 
+BASE_DIR = r"G:\DEEP LEARNING\AI city\Dataset\data" # Change the path where you save the datasets
 
 CATEGORY_MAP = {"0": -1, "1": 3, "2": -1, "3": -1, "4": 2, "5": 2, "6": 4, "7": -1, "8": -1, "9": 0, "10": 1, "11": -1}
 CATEGORIES = [{"id": i, "name": name} for i, name in enumerate(["Bus", "Bike", "Car", "Pedestrian", "Truck"])]
