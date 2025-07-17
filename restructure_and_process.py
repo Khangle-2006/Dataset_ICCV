@@ -1,14 +1,19 @@
-# restructure_and_process.py
 import os
 import shutil
 import json
-import cv2
+import math
+from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
+import cv2
 
-BASE_DIR = r"G:\DEEP LEARNING\AI city\Dataset\data" # Change the path where you save the datasets
-
+BASE_DIR = r"G:\DEEP LEARNING\AI city\Dataset\data" # Change to the path where you save the datasets
 CATEGORY_MAP = {"0": -1, "1": 3, "2": -1, "3": -1, "4": 2, "5": 2, "6": 4, "7": -1, "8": -1, "9": 0, "10": 1, "11": -1}
 CATEGORIES = [{"id": i, "name": name} for i, name in enumerate(["Bus", "Bike", "Car", "Pedestrian", "Truck"])]
+
+LOAF_INPUT_FOLDERS = [r"G:\DEEP LEARNING\AI city\annotations\annotations\resolution_1k"] #change to the path where you save the annotations for LOAF resolution_1k
+LOAF_TARGET_JSONS = ["instances_train.json"]
+LOAF_OUTPUT_DIR = os.path.join(BASE_DIR, "Train", "LOAF")
+CUSTOM_NUM_WORKERS = 16
 
 def flatten_folder(path):
     while len(os.listdir(path)) == 1 and os.path.isdir(os.path.join(path, os.listdir(path)[0])):
@@ -17,8 +22,6 @@ def flatten_folder(path):
 
 def restructure():
     print("\n📁 Restructuring folders...")
-
-  
     vis_src = os.path.join(BASE_DIR, "visdrone_raw", "VisDrone2019-DET-train")
     vis_dst = os.path.join(BASE_DIR, "Visdrone")
 
@@ -31,7 +34,6 @@ def restructure():
     shutil.move(os.path.join(vis_src, "annotations"), os.path.join(vis_dst, "annotations"))
     print("✅ Moved Visdrone into one folder")
 
-    # --- LOAF ---
     loaf_img = flatten_folder(os.path.join(BASE_DIR, "loaf_images"))
     loaf_ann = flatten_folder(os.path.join(BASE_DIR, "loaf_annotations"))
     loaf_dst = os.path.join(BASE_DIR, "LOAF")
@@ -41,14 +43,12 @@ def restructure():
         shutil.copytree(loaf_ann, loaf_dst, dirs_exist_ok=True)
         print("✅ Merged LOAF")
 
-    # --- Fisheye8K ---
     fs_dir = os.path.join(BASE_DIR, "fisheye8k")
     fs_dir = flatten_folder(fs_dir)
     fs_dst = os.path.join(BASE_DIR, "Fisheye8K")
     if not os.path.exists(fs_dst):
         shutil.move(fs_dir, fs_dst)
         print("✅ Moved Fisheye8K")
-
 
 def convert_visdrone_to_yolo(src, dst, img_w, img_h):
     with open(src, "r") as f: bboxes = f.readlines()
@@ -96,7 +96,7 @@ def process_visdrone():
     vis_labels = os.path.join(visdrone, "labels")
     os.makedirs(vis_labels, exist_ok=True)
 
-    print("\n🧠 Processing VisDrone...")
+    print("\n🫠 Processing VisDrone...")
     for file in tqdm(os.listdir(vis_images), desc="🔁 VisDrone to YOLO"):
         img_path = os.path.join(vis_images, file)
         ann_path = os.path.join(vis_annotations, os.path.splitext(file)[0] + ".txt")
@@ -110,7 +110,43 @@ def process_visdrone():
     create_coco_json(vis_images, vis_labels, os.path.join(visdrone, "train.json"))
     print("✅ VisDrone: train.json created.")
 
+
+def rotated_box_to_aabb(xc, yc, w, h, angle_deg):
+    angle = math.radians(angle_deg)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    dx = w / 2
+    dy = h / 2
+    corners = [(-dx, -dy), (-dx, dy), (dx, dy), (dx, -dy)]
+    rotated_corners = [(x * cos_a - y * sin_a + xc, x * sin_a + y * cos_a + yc) for x, y in corners]
+    x_coords, y_coords = zip(*rotated_corners)
+    return [min(x_coords), min(y_coords), max(x_coords) - min(x_coords), max(y_coords) - min(y_coords)], rotated_corners
+
+def get_radius_point(rotated_corners, image_center=(1476, 1476)):
+    return min(rotated_corners, key=lambda p: (p[0] - image_center[0])**2 + (p[1] - image_center[1])**2)
+
+def convert_json_file(json_path):
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    for ann in data.get('annotations', []):
+        if 'rotated_box' in ann and len(ann['rotated_box']) == 5:
+            xc, yc, w, h, angle = ann['rotated_box']
+            aabb, corners = rotated_box_to_aabb(xc, yc, w, h, angle)
+            ann['bbox'] = aabb
+            ann['radius_point'] = get_radius_point(corners)
+    out_path = os.path.join(LOAF_OUTPUT_DIR, os.path.basename(json_path).replace(".json", "_converted.json"))
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, 'w') as f:
+        json.dump(data, f, indent=4)
+    print(f"✅ LOAF JSON saved: {out_path}")
+
+def process_loaf_annotations():
+    print("\n🚀 Converting LOAF annotations...")
+    all_jsons = [os.path.join(folder, fname) for folder in LOAF_INPUT_FOLDERS for fname in LOAF_TARGET_JSONS]
+    with Pool(processes=min(CUSTOM_NUM_WORKERS, len(all_jsons))) as pool:
+        pool.map(convert_json_file, all_jsons)
+
 if __name__ == "__main__":
     restructure()
     process_visdrone()
-    print("\n🎉 All folders and VisDrone JSON ready!")
+    process_loaf_annotations()
+    print("\n🎉 All processing complete.")
