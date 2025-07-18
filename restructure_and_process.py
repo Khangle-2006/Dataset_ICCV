@@ -12,7 +12,7 @@ CATEGORIES = [{"id": i, "name": name} for i, name in enumerate(["Bus", "Bike", "
 
 LOAF_INPUT_FOLDERS = [r"G:\DEEP LEARNING\AI city\annotations\annotations\resolution_1k"] #change to the path where you save the annotations for LOAF resolution_1k
 LOAF_TARGET_JSONS = ["instances_train.json"]
-LOAF_OUTPUT_DIR = os.path.join(BASE_DIR, "Train", "LOAF")
+LOAF_OUTPUT_DIR = os.path.join(BASE_DIR, "LOAF")
 CUSTOM_NUM_WORKERS = 16
 
 def flatten_folder(path):
