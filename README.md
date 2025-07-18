@@ -20,3 +20,12 @@ This repository provides a complete pipeline to **download, process, and organiz
 │   ├── Fisheye8K/              # Final Fisheye8K after restructure
 │   ├── Train/                  # Final training datasets (Visdrone, LOAF, Fisheye8K)
 │   └── Test/                   # Final testing dataset (Fisheye1keval)
+
+```
+---
+
+This pipeline not only downloads and restructures datasets, but also converts all annotations into standardized formats.
+
+VisDrone annotations are converted from their raw .txt format into both YOLO (for object detection) and COCO (for evaluation). The result is saved as labels/ (YOLO) and train.json (COCO) under the Visdrone/ folder.
+
+LOAF annotations originally use rotated bounding boxes. These are converted into standard axis-aligned bounding boxes with an additional radius_point field (used for downstream LOAF tasks). The final converted file is saved as instances_train_converted.json under the LOAF/ folder.
